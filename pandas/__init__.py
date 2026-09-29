@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from importlib import import_module
+from types import ModuleType
+
 __docformat__ = "restructuredtext"
 
 # PEP 810: defer I/O backends, test helpers and the eval/resample/interchange/
@@ -7,6 +10,8 @@ __docformat__ = "restructuredtext"
 __lazy_modules__ = (
     "pandas.io.api",
     "pandas.io.json._normalize",
+    "pandas.plotting",
+    "pandas.tseries",
     "pandas.testing",
     "pandas.core.computation.api",
     "pandas.api",
@@ -122,10 +127,6 @@ from pandas.core.col import col
 from pandas.core.dtypes.dtypes import SparseDtype
 
 from pandas.tseries.api import infer_freq
-from pandas.tseries import offsets
-
-from pandas.core.computation.api import eval
-
 from pandas.core.reshape.api import (
     concat,
     lreshape,
@@ -143,9 +144,11 @@ from pandas.core.reshape.api import (
     qcut,
 )
 
-from pandas import arrays, errors, io, plotting, tseries
+from pandas import arrays, errors, io
 import pandas.api as api  # noqa: PLR0402  (keeps the import lazy under PEP 810)
+import pandas.plotting as plotting  # noqa: PLR0402  (keeps the import lazy under PEP 810)
 import pandas.testing as testing  # noqa: PLR0402  (keeps the import lazy under PEP 810)
+import pandas.tseries as tseries  # noqa: PLR0402  (keeps the import lazy under PEP 810)
 from pandas.util._print_versions import show_versions
 
 from pandas.io.api import (
@@ -182,8 +185,6 @@ from pandas.io.api import (
 )
 
 from pandas.io.json._normalize import json_normalize
-
-from pandas.util._tester import test
 
 # use the closest tagged version if possible
 from pandas._version_meson import (  # pyright: ignore [reportMissingImports]
@@ -355,3 +356,36 @@ __all__ = [
     "unique",
     "wide_to_long",
 ]
+
+
+def eval(*args, **kwargs):
+    from pandas.core.computation.api import eval as eval_
+
+    return eval_(*args, **kwargs)
+
+
+class _LazyModule(ModuleType):
+    def __init__(self, module_name: str) -> None:
+        super().__init__(module_name)
+        self._module_name = module_name
+        self._module: ModuleType | None = None
+
+    def _load(self) -> ModuleType:
+        if self._module is None:
+            self._module = import_module(self._module_name)
+        return self._module
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._load(), name)
+
+    def __dir__(self) -> list[str]:
+        return dir(self._load())
+
+
+offsets = _LazyModule("pandas.tseries.offsets")
+
+
+def test(extra_args: list[str] | None = None, run_doctests: bool = False) -> None:  # noqa: PT028
+    from pandas.util._tester import test as test_
+
+    return test_(extra_args=extra_args, run_doctests=run_doctests)
